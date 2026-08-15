@@ -206,7 +206,7 @@ Comandos admin:
     def handle_all(message):
            try:
         guardar_historial("telegram", message.from_user.id, message.text, "")
-    except: pass
+           except: pass
 
         if message.from_user.id == ADMIN_ID and message.text:
             txt = message.text.lower()
