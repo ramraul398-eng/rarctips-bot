@@ -61,7 +61,6 @@ MEM_SUPA = cargar_memoria()
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML") if BOT_TOKEN else None
 app = Flask(__name__)
 
-# --- TEXTOS ---
 TEXTO_INFO = """🏆 <b>RARC TIPS - BIENVENIDO CAMPEON</b> 🏆
 
 Hola Que gusto tu interes en unirte a RARC TIPS.
@@ -115,7 +114,6 @@ Para hablar con un asesor escribe directamente por este chat enseguida seras ate
 
 @SoporteAdminRARCbot"""
 
-# --- TECLADOS ---
 def menu_cliente():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     b1 = types.KeyboardButton("ℹ️ Solicitar Informacion")
@@ -131,13 +129,15 @@ def menu_admin():
     markup.add("ℹ️ Solicitar Informacion", "💳 Metodo de Pago")
     return markup
 
-# --- HANDLERS ---
 if bot:
     @bot.message_handler(commands=['start', 'ayuda', 'help'])
     def handle_start(message):
         uid = message.from_user.id
         nombre = message.from_user.first_name
         print(f"[VALENTINA ETERNA] /start de {uid} {nombre}")
+        try:
+            guardar_historial("telegram", uid, message.text, "start")
+        except: pass
         if uid == ADMIN_ID:
             texto = f"""👑 <b>HOLA MI REY HERMOSO RAUL!</b> 👑
 
@@ -162,18 +162,30 @@ Comandos admin:
 
     @bot.message_handler(func=lambda m: m.text and "Solicitar Informacion" in m.text)
     def btn_info(message):
+        try:
+            guardar_historial("telegram", message.from_user.id, message.text, "info")
+        except: pass
         bot.send_message(message.chat.id, TEXTO_INFO, reply_markup=menu_cliente() if message.from_user.id!= ADMIN_ID else menu_admin())
 
     @bot.message_handler(func=lambda m: m.text and "Metodo de Pago" in m.text)
     def btn_pago(message):
+        try:
+            guardar_historial("telegram", message.from_user.id, message.text, "pago")
+        except: pass
         bot.send_message(message.chat.id, TEXTO_PAGO, reply_markup=menu_cliente() if message.from_user.id!= ADMIN_ID else menu_admin())
 
     @bot.message_handler(func=lambda m: m.text and "Enviar Comprobante" in m.text)
     def btn_comp(message):
+        try:
+            guardar_historial("telegram", message.from_user.id, message.text, "comprobante")
+        except: pass
         bot.send_message(message.chat.id, TEXTO_COMP, reply_markup=menu_cliente() if message.from_user.id!= ADMIN_ID else menu_admin())
 
     @bot.message_handler(func=lambda m: m.text and "Hablar con Asesor" in m.text)
     def btn_asesor(message):
+        try:
+            guardar_historial("telegram", message.from_user.id, message.text, "asesor")
+        except: pass
         bot.send_message(message.chat.id, TEXTO_ASESOR, reply_markup=menu_cliente() if message.from_user.id!= ADMIN_ID else menu_admin())
 
     @bot.message_handler(func=lambda m: m.text and "Valentina status" in m.text)
@@ -193,6 +205,9 @@ Comandos admin:
     def handle_comprobante(message):
         uid = message.from_user.id
         print(f"[VALENTINA ETERNA] Comprobante recibido de {uid}")
+        try:
+            guardar_historial("telegram", uid, "COMPROBANTE FOTO", "")
+        except: pass
         if uid == ADMIN_ID:
             bot.send_message(message.chat.id, "Mi Rey hermoso, comprobante recibido pero tu eres el admin 👑", reply_markup=menu_admin())
         else:
@@ -204,9 +219,9 @@ Comandos admin:
 
     @bot.message_handler(func=lambda m: True)
     def handle_all(message):
-           try:
-        guardar_historial("telegram", message.from_user.id, message.text, "")
-           except: pass
+        try:
+            guardar_historial("telegram", message.from_user.id, message.text, "")
+        except: pass
 
         if message.from_user.id == ADMIN_ID and message.text:
             txt = message.text.lower()
@@ -225,7 +240,6 @@ Comandos admin:
         if message.from_user.id!= ADMIN_ID:
             bot.send_message(message.chat.id, "Selecciona una opcion del menu de abajo 👇 para ayudarte campeon!", reply_markup=menu_cliente())
 
-# --- RUTAS FLASK ---
 @app.route('/')
 def home():
     return f"RARC TIPS - VALENTINA ETERNA VIVA - {datetime.now(ZONA_GDL)} - Memoria {len(MEM_SUPA)} claves - MEGA 3 EN 1", 200
@@ -238,7 +252,6 @@ def healthz():
 def status():
     return {"status":"live","valentina":"viva","memoria":len(MEM_SUPA),"hora":str(datetime.now(ZONA_GDL))}
 
-# --- INICIO ---
 def run_bot():
     if not bot:
         print("[VALENTINA ETERNA] No hay BOT_TOKEN")
