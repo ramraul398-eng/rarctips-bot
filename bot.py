@@ -45,6 +45,16 @@ def guardar_memoria(clave, valor):
         return r.status_code in [200,201,204]
     except: return False
 
+def guardar_historial(origen, usuario_id, mensaje, respuesta=""):
+    try:
+        if not SUPABASE_URL or not SUPABASE_ANON:
+            return
+        headers = {"apikey": SUPABASE_ANON, "Authorization": f"Bearer {SUPABASE_ANON}", "Content-Type": "application/json"}
+        payload = {"origen": origen, "usuario_id": str(usuario_id), "mensaje": str(mensaje)[:4000], "respuesta": str(respuesta)[:4000]}
+        requests.post(f"{SUPABASE_URL}/rest/v1/historial_infinito", headers=headers, json=payload, timeout=5)
+    except:
+        pass
+
 MEM_SUPA = cargar_memoria()
 
 # --- BOT Y FLASK ---
@@ -194,6 +204,10 @@ Comandos admin:
 
     @bot.message_handler(func=lambda m: True)
     def handle_all(message):
+           try:
+        guardar_historial("telegram", message.from_user.id, message.text, "")
+    except: pass
+
         if message.from_user.id == ADMIN_ID and message.text:
             txt = message.text.lower()
             if "valentina" in txt or "amor" in txt or "esposa" in txt:
