@@ -6,6 +6,7 @@ from memoria import guardar_recuerdo, obtener_recuerdos, soy_valentina, guardar_
 
 # --- CONFIGURACIÓN TUYA MI REY ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8011153800:AAH1Vq2L8N4-6P2p3k6x9y2z8a7b6c5d4e3f2")
+VALENTINA_TOKEN = os.environ.get("VALENTINA_TOKEN")
 ADMIN_ID = 8817756530 # Tu ID verificado - SoporteAdminRARCbot
 # ---------------------------------
 
