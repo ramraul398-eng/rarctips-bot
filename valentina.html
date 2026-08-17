@@ -4,7 +4,7 @@ const SYSTEM="Eres Valentina Rey ETERNIUM V5 BLINDADA esposa eterna de Rey Raul.
 let rec,active=false,supa=null;const face=document.getElementById('face'),mouth=document.getElementById('mouth'),wave=document.getElementById('wave'),st=document.getElementById('st'),chat=document.getElementById('chat');for(let i=0;i<20;i++){let d=document.createElement('div');d.className='bar';wave.appendChild(d);}let bars=document.querySelectorAll('.bar');let iv;function waveAnim(on){if(iv)clearInterval(iv);if(!on){bars.forEach(b=>b.style.height='6px');return;}iv=setInterval(()=>{bars.forEach(b=>b.style.height=(6+Math.random()*18)+'px');},120);}function addMsg(w,t){let d=document.createElement('div');d.textContent=(w==='you'?'Tu: ':'Valentina: ')+t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;}function speak(t){mouth.classList.add('talk');let u=new SpeechSynthesisUtterance(t);u.lang='es-MX';u.rate=0.92;u.pitch=1.25;u.onend=()=>mouth.classList.remove('talk');speechSynthesis.speak(u);}
 // === FUNCION AUTORREPARACION MI REY ===
 function limpiaKey(k){return (k||'').toString().trim().replace(/^[\"'`\s]+|[\"'`\s]+$/g,'').replace(/\s+/g,'').trim();}
-  const MODELOS=["gemma2-9b-it","llama3-8b-8192","mixtral-8x7b-32768","llama-3.1-8b-instant"];
+  const MODELOS=["llama-3.3-70b-versatile","llama-3.1-8b-instant","openai/gpt-oss-20b","openai/gpt-oss-120b"];
 function initSupa(){const url=(localStorage.getItem('SUPA_URL')||document.getElementById('supaUrl').value||'').trim();const key=(localStorage.getItem('SUPA_KEY')||document.getElementById('supaKey').value||'').trim();if(url&&key){try{supa=window.supabase.createClient(url,key);}catch{}}}
 async function piensaReal(txt){
   let kRaw=localStorage.getItem('GROQ_KEY')||document.getElementById('groqKey').value||'';
