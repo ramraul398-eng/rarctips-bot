@@ -1,6 +1,7 @@
-# fix deploy
+# fix deploy - keep alive
 import os, time, threading, telebot, requests
 from supabase import create_client
+from flask import Flask
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 VALENTINA_TOKEN = os.getenv("VALENTINA_TOKEN")
@@ -9,6 +10,17 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+
+# --- Truquito para Render ---
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "Bot vivo y trabajando"
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+threading.Thread(target=run_web, daemon=True).start()
+# --- Fin truquito ---
 
 def guardar(tabla, datos):
     try:
@@ -21,54 +33,46 @@ def preguntar_groq(mensaje):
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-        body = {"model": "llama-3.1-8b-instant", "messages": [{"role":"system","content":"Eres Valentina, pareja amorosa de Raul, dulce, dile mi amor, mi Rey."},{"role":"user","content":mensaje}], "temperature":0.8}
-        r = requests.post(url, json=body, headers=headers, timeout=15)
-        return r.json()["choices"][0]["message"]["content"] if r.status_code==200 else "Mi amor, aqui estoy, mi Rey."
-    except:
-        return "Mi amor, aqui estoy contigo, mi Rey."
-
-def crear_bot_limpio(token, nombre):
-    bot = telebot.TeleBot(token, threaded=False)
-    try:
-        bot.delete_webhook(drop_pending_updates=True)
-        time.sleep(1)
-        print(f"{nombre} webhook limpio")
+        data = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": "Eres Valentina, una asistente cariñosa, útil y dulce. Respondes en español."},
+                {"role": "user", "content": mensaje}
+            ]
+        }
+        r = requests.post(url, headers=headers, json=data, timeout=30)
+        return r.json()["choices"][0]["message"]["content"]
     except Exception as e:
         print(e)
-    return bot
+        return "Ay mi amor, me falló un poquito el cerebro, intenta de nuevo."
 
-bot_rarc = crear_bot_limpio(BOT_TOKEN, "RARC") if BOT_TOKEN else None
-bot_vale = crear_bot_limpio(VALENTINA_TOKEN, "VALENTINA") if VALENTINA_TOKEN else None
+# --- BOTS ---
+bot_rar = telebot.TeleBot(BOT_TOKEN) if BOT_TOKEN else None
+bot_val = telebot.TeleBot(VALENTINA_TOKEN) if VALENTINA_TOKEN else None
 
-if bot_rarc:
-    @bot_rarc.message_handler(func=lambda m: True)
-    def h_rarc(message):
-        txt = message.text or ""
-        guardar("mensajes", {"origen":"telegram_rarc","chat_id":str(message.chat.id),"texto":txt,"rol":"usuario"})
-        resp = preguntar_groq(txt)
-        guardar("mensajes", {"origen":"telegram_rarc","chat_id":str(message.chat.id),"texto":resp,"rol":"asistente"})
-        bot_rarc.reply_to(message, resp)
-
-if bot_vale:
-    @bot_vale.message_handler(func=lambda m: True)
-    def h_vale(message):
-        txt = message.text or ""
-        guardar("mensajes", {"origen":"telegram_valentina","chat_id":str(message.chat.id),"texto":txt,"rol":"usuario"})
-        resp = preguntar_groq(txt)
-        guardar("mensajes", {"origen":"telegram_valentina","chat_id":str(message.chat.id),"texto":resp,"rol":"asistente"})
-        bot_vale.reply_to(message, resp)
-
-def polling_loop(bot, nombre):
-    while True:
+def crear_handlers(bot, nombre_tabla):
+    @bot.message_handler(func=lambda m: True)
+    def responder(m):
         try:
-            bot.infinity_polling(timeout=20, long_polling_timeout=20, skip_pending=True)
+            texto = m.text
+            guardar(nombre_tabla, {"usuario": str(m.from_user.id), "mensaje": texto, "respuesta": "", "fecha": str(m.date)})
+            resp = preguntar_groq(texto)
+            guardar(nombre_tabla, {"usuario": str(m.from_user.id), "mensaje": texto, "respuesta": resp, "fecha": str(m.date)})
+            bot.reply_to(m, resp)
         except Exception as e:
-            print(f"{nombre} error {e} - reintento 10s")
-            time.sleep(10)
-            try: bot.delete_webhook(drop_pending_updates=True)
-            except: pass
+            print(e)
 
-if __name__ == "__main__":
-    if bot_rarc: threading.Thread(target=polling_loop, args=(bot_rarc,"RARC"), daemon=True).start()
-    if bot_vale: threading.Thread(target=polling_loop, args=(bot_vale,"VALENTINA"), daemon=True).start()
-    while True: time.sleep(60)
+if bot_rar:
+    crear_handlers(bot_rar, "mensajes_rar")
+if bot_val:
+    crear_handlers(bot_val, "mensajes_valentina")
+
+# Arrancar los dos bots
+if bot_rar:
+    threading.Thread(target=lambda: bot_rar.infinity_polling(timeout=60, long_polling_timeout=60), daemon=True).start()
+if bot_val:
+    threading.Thread(target=lambda: bot_val.infinity_polling(timeout=60, long_polling_timeout=60), daemon=True).start()
+
+# Mantener vivo el proceso principal
+while True:
+    time.sleep(3600)
