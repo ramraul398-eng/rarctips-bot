@@ -1,3 +1,4 @@
+# fix deploy
 import os, time, threading, telebot, requests
 from supabase import create_client
 
