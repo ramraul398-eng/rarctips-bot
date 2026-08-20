@@ -35,7 +35,7 @@ def preguntar_groq(texto, user_id, contexto=""):
         if contexto:
             prompt += f"\n\nMEMORIA 1 CAJITA LEIDA (no 500): {contexto}\n"
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [{"role":"system","content":prompt},{"role":"user","content":texto}],
             "temperature": 0.7,
             "max_tokens": 1000
