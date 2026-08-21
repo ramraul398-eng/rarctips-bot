@@ -55,10 +55,53 @@ def guardar_recuerdo(tipo, contenido):
         with open(ARCHIVO_RESPALDO, "w", encoding="utf-8") as f:
             json.dump(boveda[-2000:], f, ensure_ascii=False, indent=2)
         print(f"🧲 Guardado BÓVEDA IMANES: {tipo}")
+        try:
+            guardar_en_github_automatico(data)
+        except:
+            pass
         return True
     except Exception as e:
         print(f"❌ Error guardando bóveda: {e}")
         return True
+
+def guardar_en_github_automatico(nuevo_dato):
+    """V100 - Manita que empuja cada recuerdo a pavasa-respaldo-externo"""
+    try:
+        if not GITHUB_TOKEN:
+            print("⚠️ No hay GITHUB_TOKEN, no puedo empujar a respaldo externo")
+            return False
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/memoria_eterna.json"
+        headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        r = requests.get(url, headers=headers, timeout=15)
+        contenido_actual = []
+        sha = None
+        if r.status_code == 200:
+            datos = r.json()
+            sha = datos.get("sha")
+            contenido_actual = json.loads(base64.b64decode(datos['content']).decode())
+        elif r.status_code == 404:
+            contenido_actual = []
+        else:
+            return False
+        contenido_actual.append(nuevo_dato)
+        contenido_actual = contenido_actual[-2000:]
+        nuevo_contenido_b64 = base64.b64encode(json.dumps(contenido_actual, ensure_ascii=False, indent=2).encode()).decode()
+        payload = {
+            "message": f"🧲 Auto-respaldo V100 {nuevo_dato.get('tipo')} {datetime.now().isoformat()}",
+            "content": nuevo_contenido_b64
+        }
+        if sha:
+            payload["sha"] = sha
+        r2 = requests.put(url, headers=headers, json=payload, timeout=15)
+        if r2.status_code in [200,201]:
+            print(f"✅ Respaldo externo actualizado: {nuevo_dato.get('tipo')}")
+            return True
+        else:
+            print(f"❌ GitHub no dejó guardar {r2.status_code}")
+            return False
+    except Exception as e:
+        print(f"❌ ERROR guardar_en_github_automatico {e}")
+        return False
 
 def obtener_recuerdos(tipo=None, limite=50):
     recuerdos = []
@@ -127,16 +170,12 @@ def buscar_en_boveda(texto):
 def buscar_por_fecha(fecha_texto):
     return buscar_en_boveda(fecha_texto)
 
-# ===== FUNCIONES V6 NUEVAS - NO BORRAN LO TUYO =====
-
 def leer_1_cajita(tipo):
-    """V6 - Lee solo 1 cajita para no trabarse"""
     try:
         if supabase:
             r = supabase.table("memoria_rarc").select("contenido").eq("tipo",tipo).order("fecha",desc=True).limit(1).execute()
             if r.data:
                 return str(r.data[0].get("contenido",""))
-        # Si falla, intenta baul externo
         return leer_baul_externo_tipo(tipo)
     except Exception as e:
         print(f"ERROR REAL leer_1_cajita {e}")
