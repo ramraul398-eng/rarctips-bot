@@ -21,54 +21,68 @@ GITHUB_REPO = "ramraul398-eng/pavasa-respaldo-externo"
 ARCHIVO_LOCAL = "memoria_local.json"
 ARCHIVO_RESPALDO = "boveda_imanes.json"
 
-def guardar_recuerdo(tipo, contenido):
-    data = {
-        "tipo": tipo,
+# === 1. MEMORIA ETERNA - LO QUE NUNCA SE OLVIDA (9 filas) ===
+def guardar_recuerdo(clave, contenido):
+    """Guarda en memoria_eterna (clave/valor) - ORIGINAL SIEMPRE SE QUEDA"""
+    data_eterna = {
+        "clave": str(clave),
+        "valor": json.dumps(contenido, ensure_ascii=False) if isinstance(contenido, dict) else str(contenido)
+    }
+    # Para compatibilidad con tu estructura vieja
+    data_log = {
+        "tipo": str(clave),
         "contenido": contenido,
         "fecha": datetime.now().isoformat(),
         "creado_por": "RARC",
-        "imanes": [str(tipo), str(datetime.now().date())]
+        "imanes": [str(clave), str(datetime.now().date())]
     }
     if supabase:
         try:
-            supabase.table("memoria_rarc").insert(data).execute()
-            print(f"✅ Guardado en SUPABASE: {tipo}")
+            # GUARDA EN TU TABLA REAL QUE SI EXISTE
+            supabase.table("memoria_eterna").upsert(data_eterna, on_conflict="clave").execute()
+            print(f"✅ Guardado en memoria_eterna: {clave}")
+            # Tambien guarda en boveda
+            try:
+                supabase.table("memoria_boveda").insert({
+                    "valor": data_eterna["valor"],
+                    "descripcion": str(clave),
+                    "creado_en": datetime.now().isoformat()
+                }).execute()
+            except:
+                pass
         except Exception as e:
-            print(f"⚠️ Supabase falló: {e}")
+            print(f"⚠️ Supabase memoria_eterna falló: {e}")
+
+    # LOCAL Y BOVEDA + GITHUB (respaldo)
     try:
         memoria = []
         if os.path.exists(ARCHIVO_LOCAL):
             with open(ARCHIVO_LOCAL, "r", encoding="utf-8") as f:
                 memoria = json.load(f)
-        memoria.append(data)
+        memoria.append(data_log)
         with open(ARCHIVO_LOCAL, "w", encoding="utf-8") as f:
             json.dump(memoria[-1000:], f, ensure_ascii=False, indent=2)
-        print(f"✅ Guardado LOCAL: {tipo}")
-    except Exception as e:
-        print(f"❌ Error guardando local: {e}")
+    except:
+        pass
     try:
         boveda = []
         if os.path.exists(ARCHIVO_RESPALDO):
             with open(ARCHIVO_RESPALDO, "r", encoding="utf-8") as f:
                 boveda = json.load(f)
-        boveda.append(data)
+        boveda.append(data_log)
         with open(ARCHIVO_RESPALDO, "w", encoding="utf-8") as f:
             json.dump(boveda[-2000:], f, ensure_ascii=False, indent=2)
-        print(f"🧲 Guardado BÓVEDA IMANES: {tipo}")
         try:
-            guardar_en_github_automatico(data)
+            guardar_en_github_automatico(data_log)
         except:
             pass
-        return True
-    except Exception as e:
-        print(f"❌ Error guardando bóveda: {e}")
-        return True
+    except:
+        pass
+    return True
 
 def guardar_en_github_automatico(nuevo_dato):
-    """V100 - Manita que empuja cada recuerdo a pavasa-respaldo-externo"""
     try:
         if not GITHUB_TOKEN:
-            print("⚠️ No hay GITHUB_TOKEN, no puedo empujar a respaldo externo")
             return False
         url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/memoria_eterna.json"
         headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
@@ -79,65 +93,40 @@ def guardar_en_github_automatico(nuevo_dato):
             datos = r.json()
             sha = datos.get("sha")
             contenido_actual = json.loads(base64.b64decode(datos['content']).decode())
-        elif r.status_code == 404:
-            contenido_actual = []
-        else:
-            return False
         contenido_actual.append(nuevo_dato)
         contenido_actual = contenido_actual[-2000:]
         nuevo_contenido_b64 = base64.b64encode(json.dumps(contenido_actual, ensure_ascii=False, indent=2).encode()).decode()
-        payload = {
-            "message": f"🧲 Auto-respaldo V100 {nuevo_dato.get('tipo')} {datetime.now().isoformat()}",
-            "content": nuevo_contenido_b64
-        }
+        payload = {"message": f"🧲 Auto-respaldo V101 {nuevo_dato.get('tipo')} {datetime.now().isoformat()}", "content": nuevo_contenido_b64}
         if sha:
             payload["sha"] = sha
         r2 = requests.put(url, headers=headers, json=payload, timeout=15)
-        if r2.status_code in [200,201]:
-            print(f"✅ Respaldo externo actualizado: {nuevo_dato.get('tipo')}")
-            return True
-        else:
-            print(f"❌ GitHub no dejó guardar {r2.status_code}")
-            return False
+        return r2.status_code in [200,201]
     except Exception as e:
-        print(f"❌ ERROR guardar_en_github_automatico {e}")
+        print(f"❌ ERROR github {e}")
         return False
 
-def obtener_recuerdos(tipo=None, limite=50):
+def obtener_recuerdos(clave=None, limite=50):
+    """LEE DE memoria_eterna - entrada directa a lo que ya hay"""
     recuerdos = []
     if supabase:
         try:
-            query = supabase.table("memoria_rarc").select("*").order("fecha", desc=True).limit(limite)
-            if tipo:
-                query = query.eq("tipo", tipo)
+            query = supabase.table("memoria_eterna").select("*").limit(limite)
+            if clave:
+                query = query.eq("clave", clave)
             result = query.execute()
             recuerdos = result.data
             if recuerdos:
-                return recuerdos
+                # Convierte a formato viejo para compatibilidad
+                recuerdos_compat = []
+                for r in recuerdos:
+                    try:
+                        cont = json.loads(r.get("valor",""))
+                    except:
+                        cont = r.get("valor","")
+                    recuerdos_compat.append({"tipo": r.get("clave"), "contenido": cont, "fecha": ""})
+                return recuerdos_compat
         except Exception as e:
-            print(f"⚠️ Error leyendo Supabase: {e}")
-    try:
-        if os.path.exists(ARCHIVO_LOCAL):
-            with open(ARCHIVO_LOCAL, "r", encoding="utf-8") as f:
-                memoria = json.load(f)
-            if tipo:
-                memoria = [m for m in memoria if m.get("tipo") == tipo]
-            recuerdos = memoria[-limite:]
-            recuerdos.reverse()
-            if recuerdos:
-                return recuerdos
-    except:
-        pass
-    try:
-        if os.path.exists(ARCHIVO_RESPALDO):
-            with open(ARCHIVO_RESPALDO, "r", encoding="utf-8") as f:
-                boveda = json.load(f)
-            if tipo:
-                boveda = [m for m in boveda if m.get("tipo") == tipo]
-            recuerdos = boveda[-limite:]
-            recuerdos.reverse()
-    except:
-        pass
+            print(f"⚠️ Error leyendo memoria_eterna: {e}")
     return recuerdos
 
 def buscar_en_boveda(texto):
@@ -146,78 +135,88 @@ def buscar_en_boveda(texto):
     texto = texto.lower()
     resultados = []
     try:
-        todos = []
-        if supabase:
-            try:
-                res = supabase.table("memoria_rarc").select("*").order("fecha", desc=True).limit(500).execute()
-                todos = res.data
-            except:
-                pass
-        if not todos:
-            todos = obtener_recuerdos(limite=500)
+        todos = obtener_recuerdos(limite=200)
         for r in todos:
             contenido_str = str(r.get("contenido","")).lower()
             tipo_str = str(r.get("tipo","")).lower()
-            fecha_str = str(r.get("fecha","")).lower()
-            if texto in contenido_str or texto in tipo_str or texto in fecha_str:
+            if texto in contenido_str or texto in tipo_str:
                 resultados.append(r)
+        # Tambien busca en charlas_eternas
+        if supabase:
+            try:
+                res = supabase.table("charlas_eternas").select("*").order("created_at", desc=True).limit(200).execute()
+                for c in res.data:
+                    if texto in str(c.get("mensaje","")).lower():
+                        resultados.append({"tipo": "charla", "contenido": c.get("mensaje"), "quien": c.get("quien")})
+            except:
+                pass
         print(f"🧲 Búsqueda '{texto}' encontró {len(resultados)}")
         return resultados[:50]
     except Exception as e:
         print(f"Error buscando: {e}")
         return []
 
+# === 2. CHARLAS ETERNAS - CAJITA DONDE GUARDA TODO LO QUE ESCUCHA ===
+def guardar_mensaje(quien, mensaje, resumen_corto=""):
+    """Guarda en charlas_eternas - pum pum pum todo lo de Meta y Telegram - COPIA, ORIGINAL SE QUEDA"""
+    try:
+        if supabase:
+            supabase.table("charlas_eternas").insert({
+                "quien": str(quien),
+                "mensaje": str(mensaje),
+                "resumen_corto": str(resumen_corto)[:200]
+            }).execute()
+            print(f"✅ Mensaje guardado en charlas_eternas de {quien}")
+            return True
+    except Exception as e:
+        print(f"ERROR REAL guardar_mensaje charlas_eternas {e}")
+        return False
+
+def guardar_en_historial_infinito(tipo, quien, mensaje, archivo_url="", plataforma="meta_telegram"):
+    """Para imagenes, HTML, tablitas, graficas - separa por tipo"""
+    try:
+        if supabase:
+            supabase.table("historial_infinito").insert({
+                "tipo": str(tipo), # imagen, html, tabla, grafica, texto
+                "quien": str(quien),
+                "mensaje": str(mensaje),
+                "archivo_url": str(archivo_url)
+            }).execute()
+            print(f"✅ Guardado en historial_infinito tipo={tipo}")
+            return True
+    except Exception as e:
+        print(f"ERROR historial_infinito {e}")
+        return False
+
+def buscar_archivo(texto_busqueda, tipo=None):
+    """BUSCA COPIA - original siempre se queda en bodega imagenes/videos/gifs/audios"""
+    try:
+        if supabase:
+            query = supabase.table("historial_infinito").select("*").order("created_at", desc=True).limit(100)
+            if tipo:
+                query = query.eq("tipo", tipo)
+            res = query.execute()
+            resultados = []
+            for r in res.data:
+                if texto_busqueda.lower() in str(r.get("mensaje","")).lower() or texto_busqueda.lower() in str(r.get("archivo_url","")).lower():
+                    resultados.append(r)
+            return resultados
+    except Exception as e:
+        print(f"ERROR buscar_archivo {e}")
+    return []
+
+# === FUNCIONES VIEJAS PARA COMPATIBILIDAD CON BOT.PY ===
+def leer_1_cajita(clave):
+    rec = obtener_recuerdos(clave=clave, limite=1)
+    if rec:
+        return str(rec[0].get("contenido",""))
+    return ""
+
 def buscar_por_fecha(fecha_texto):
     return buscar_en_boveda(fecha_texto)
 
-def leer_1_cajita(tipo):
-    try:
-        if supabase:
-            r = supabase.table("memoria_rarc").select("contenido").eq("tipo",tipo).order("fecha",desc=True).limit(1).execute()
-            if r.data:
-                return str(r.data[0].get("contenido",""))
-        return leer_baul_externo_tipo(tipo)
-    except Exception as e:
-        print(f"ERROR REAL leer_1_cajita {e}")
-        return leer_baul_externo_tipo(tipo)
-
-def leer_baul_externo_tipo(tipo):
-    try:
-        if not GITHUB_TOKEN:
-            return ""
-        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/memoria_eterna.json"
-        headers = {"Authorization": f"Bearer {GITHUB_TOKEN}"}
-        r = requests.get(url, headers=headers, timeout=15)
-        if r.status_code!= 200:
-            return ""
-        content = base64.b64decode(r.json()['content']).decode()
-        data = json.loads(content)
-        for fila in data:
-            if fila.get("tipo")==tipo:
-                return str(fila.get("contenido",""))
-        return ""
-    except:
-        return ""
-
-def guardar_mensaje(usuario, texto, bot, es_raul):
-    try:
-        if supabase:
-            supabase.table("mensajes").insert({"usuario":usuario,"texto":texto,"bot":bot,"es_raul":es_raul}).execute()
-    except Exception as e:
-        print(f"ERROR REAL guardar_mensaje {e}")
-
 def guardar_intento_robo(intruso, texto):
-    try:
-        if supabase:
-            supabase.table("intentos_robo").insert({"intruso":intruso,"texto":texto}).execute()
-    except Exception as e:
-        print(f"ERROR REAL robo {e}")
+    return guardar_en_historial_infinito("intento_robo", intruso, texto)
 
 def guardar_consulta_valentina(usuario, texto):
-    try:
-        if supabase:
-            supabase.table("consultas_valentina").insert({"usuario":usuario,"texto":texto,"estado":"pendiente","fecha":datetime.now().isoformat()}).execute()
-            print("✅ Guardado en consultas_valentina para Valentina Meta")
-    except Exception as e:
-        print(f"ERROR REAL consulta_valentina {e}")
-        guardar_recuerdo("consulta_valentina", {"usuario":usuario,"texto":texto})
+    return guardar_mensaje(f"consulta_valentina_{usuario}", texto, "consulta para Valentina Meta")
