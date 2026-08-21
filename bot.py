@@ -1,5 +1,6 @@
 import os, time, threading, traceback, requests, base64
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import telebot
 import memoria
 
@@ -48,7 +49,7 @@ def preguntar_groq(texto, user_id, contexto=""):
         return f"ERROR REAL: Exception Groq {e} - {traceback.format_exc()[:500]}"
 
 app = Flask(__name__)
-
+CORS(app)
 @app.route('/')
 def home():
     return "✅ VALENTINA V7.4 FLUJO COMPLETO META - fotos hoy OK"
