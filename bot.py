@@ -102,7 +102,7 @@ def crear_bot():
         espera=5
         while True:
             try:
-                print("🚀 VALENTINA V6 LANZADA SOLO VALENTINA NUNCA MUERE")
+                print("🚀 VALENTINA V7.1 BLINDADA LANZADA - RAUL REY - VELADOR ACTIVO")
                 bot.infinity_polling(timeout=10, long_polling_timeout=5, skip_pending=True)
                 espera=5
             except Exception as e:
