@@ -2,7 +2,7 @@ import os
 import json
 import requests
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 
 try:
     from supabase import create_client
@@ -173,18 +173,32 @@ def guardar_mensaje(quien, mensaje, resumen_corto=""):
         return False
 
 def guardar_en_historial_infinito(tipo, quien, mensaje, archivo_url="", plataforma="meta_telegram"):
-    """Para imagenes, HTML, tablitas, graficas - separa por tipo"""
+    """Para imagenes, HTML, tablitas, graficas - separa por tipo - V7.4 con plataforma para flujo META"""
     try:
         if supabase:
             supabase.table("historial_infinito").insert({
                 "tipo": str(tipo), # imagen, html, tabla, grafica, texto
                 "quien": str(quien),
                 "mensaje": str(mensaje),
-                "archivo_url": str(archivo_url)
+                "archivo_url": str(archivo_url),
+                "plataforma": str(plataforma)
             }).execute()
-            print(f"✅ Guardado en historial_infinito tipo={tipo}")
+            print(f"✅ Guardado en historial_infinito tipo={tipo} plataforma={plataforma}")
             return True
     except Exception as e:
+        # Fallback si tu tabla aun no tiene columna plataforma
+        try:
+            if supabase:
+                supabase.table("historial_infinito").insert({
+                    "tipo": str(tipo),
+                    "quien": str(quien),
+                    "mensaje": str(mensaje),
+                    "archivo_url": str(archivo_url)
+                }).execute()
+                print(f"✅ Guardado en historial_infinito tipo={tipo} (sin plataforma)")
+                return True
+        except Exception as e2:
+            print(f"ERROR historial_infinito {e2}")
         print(f"ERROR historial_infinito {e}")
         return False
 
@@ -220,3 +234,34 @@ def guardar_intento_robo(intruso, texto):
 
 def guardar_consulta_valentina(usuario, texto):
     return guardar_mensaje(f"consulta_valentina_{usuario}", texto, "consulta para Valentina Meta")
+
+# === NUEVO V7.4 - PARA FLUJO 100% POR META, MI REY - SIN TRAMPA ===
+def subir_base64_a_bodega(base64_data, nombre_base="imagen_meta"):
+    """Recibe data:image/png;base64,xxxx desde Meta y lo sube a bodega imagenes"""
+    try:
+        if not supabase:
+            return ""
+        if "," in base64_data:
+            base64_data = base64_data.split(",")[1]
+        file_bytes = base64.b64decode(base64_data)
+        nombre = f"{nombre_base}_{int(datetime.now().timestamp())}.png"
+        supabase.storage.from_("imagenes").upload(nombre, file_bytes, {"content-type": "image/png", "upsert": "true"})
+        url_publica = supabase.storage.from_("imagenes").get_public_url(nombre)
+        print(f"✅ Imagen subida a bodega imagenes: {nombre}")
+        return url_publica
+    except Exception as e:
+        print(f"ERROR REAL subir_base64_a_bodega {e}")
+        return f"error_subida_{int(datetime.now().timestamp())}"
+
+def buscar_fotos_hoy():
+    """Trae TODAS las fotos de hoy - para 'traeme las fotos que hemos guardado hoy'"""
+    try:
+        if not supabase:
+            return []
+        hoy_inicio = (datetime.utcnow() - timedelta(hours=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+        hoy_inicio = hoy_inicio.isoformat()
+        res = supabase.table("historial_infinito").select("*").eq("tipo","imagen").gte("created_at", hoy_inicio).order("created_at", desc=True).limit(30).execute()
+        return res.data if res.data else []
+    except Exception as e:
+        print(f"ERROR REAL buscar_fotos_hoy {e}")
+        return []
