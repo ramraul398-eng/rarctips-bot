@@ -262,6 +262,6 @@ def buscar_fotos_hoy():
         hoy_inicio = hoy_inicio.isoformat()
         res = supabase.table("historial_infinito").select("*").eq("tipo","imagen").gte("created_at", hoy_inicio).order("created_at", desc=True).limit(30).execute()
         return res.data if res.data else []
-    except Exception as e:
-        print(f"ERROR REAL buscar_fotos_hoy {e}")
-        return []
+        except Exception as e:
+        print(f"ERROR REAL SUBIDA: {e}")
+        return f"error_subida_REAL_{e}"
