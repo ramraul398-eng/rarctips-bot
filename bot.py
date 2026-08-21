@@ -6,6 +6,9 @@ import memoria
 RAUL_ID = os.getenv("RAUL_ID")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 VALENTINA_TOKEN = os.getenv("VALENTINA_TOKEN")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+ODDS_API_KEY = os.getenv("ODDS_API_KEY") or os.getenv("ODDS_API")
 
 # Si no hay VALENTINA_TOKEN no prende - ERROR REAL
 if not VALENTINA_TOKEN:
@@ -52,7 +55,11 @@ def preguntar_groq(texto, user_id, contexto=""):
 app = Flask(__name__)
 @app.route('/')
 def home():
-    return "✅ VALENTINA V6 INMORTAL - SOLO VALENTINA_TOKEN - CONSULTA A META - MANITAS - ERROR REAL"
+    return "✅ VALENTINA V7.1 BLINDADA - RAUL REY - SUPABASE + ODDS + VELADOR + MANITAS"
+
+@app.route('/health')
+def health():
+    return "OK V7.1 DESPIERTA", 200
 
 @app.route('/webhook_valentina', methods=['POST'])
 def webhook_valentina():
