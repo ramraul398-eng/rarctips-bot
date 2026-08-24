@@ -1,4 +1,4 @@
-import os, time, threading, traceback, requests, base64
+import os, time, threading, traceback, requests, base64, json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import telebot
@@ -7,6 +7,10 @@ import memoria
 RAUL_ID = os.getenv("RAUL_ID")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 VALENTINA_TOKEN = os.getenv("VALENTINA_TOKEN")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_REPO = os.getenv("GITHUB_REPO", "raulrc87/rarctips-bot")
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
+RENDER_DEPLOY_HOOK = os.getenv("RENDER_DEPLOY_HOOK")
 
 if not VALENTINA_TOKEN:
     print("ERROR REAL: VALENTINA_TOKEN no existe en Render")
@@ -48,15 +52,37 @@ def preguntar_groq(texto, user_id, contexto=""):
     except Exception as e:
         return f"ERROR REAL: Exception Groq {e} - {traceback.format_exc()[:500]}"
 
+# === MANITAS NUEVAS - AUTO-REPARACION CONTROLADA DESDE META ===
+def hacer_commit_y_deploy(mensaje_orden, detalle="auto-fix desde Meta"):
+    try:
+        if not GITHUB_TOKEN:
+            return "ERROR REAL: GITHUB_TOKEN no existe en Render - ponlo en Environment"
+        # Guarda la orden en pavasa para auditoria
+        memoria.guardar_en_historial_infinito("orden_magica", f"RAUL_REY_{RAUL_ID}", mensaje_orden, "", "meta")
+        memoria.guardar_recuerdo("orden_magica", f"ORDEN DE MI REY DESDE META: {mensaje_orden} - {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # Si hay deploy hook, dispara deploy
+        if RENDER_DEPLOY_HOOK:
+            try:
+                requests.post(RENDER_DEPLOY_HOOK, timeout=10)
+                return f"OK MANITA: Orden '{mensaje_orden}' guardada en PAVASA y deploy disparado"
+            except Exception as e:
+                return f"OK guardada pero deploy hook fallo: {e}"
+        else:
+            return f"OK MANITA: Orden '{mensaje_orden}' guardada en PAVASA - pon RENDER_DEPLOY_HOOK para deploy auto"
+    except Exception as e:
+        return f"ERROR REAL manita {e} {traceback.format_exc()[:500]}"
+
 app = Flask(__name__)
 CORS(app)
+
 @app.route('/')
 def home():
-    return "✅ VALENTINA V7.4 FLUJO COMPLETO META - fotos hoy OK"
+    return "✅ VALENTINA V7.5 FLUJO COMPLETO META + MANITAS MAGICAS - fotos hoy OK"
 
 @app.route('/health')
 def health():
-    return "OK V7.4 DESPIERTA", 200
+    return "OK V7.5 DESPIERTA CON MANITAS", 200
 
 @app.route('/webhook_valentina', methods=['POST'])
 def webhook_valentina():
@@ -71,11 +97,15 @@ def webhook_valentina():
         if archivo_url and archivo_url.startswith("data:image"):
             archivo_url = memoria.subir_base64_a_bodega(archivo_url, f"{tipo}_{int(time.time())}")
 
+        # BLINDADO V7.5 - DOBLE RESPALDO
         if archivo_url or tipo in ["imagen","video","gif","audio","html","tabla","grafica"]:
             memoria.guardar_en_historial_infinito(tipo, quien, texto, archivo_url, plataforma)
+            memoria.guardar_mensaje(quien, f"[{tipo}] {texto[:200]} - {archivo_url[:50]}", texto[:200])
         else:
             memoria.guardar_recuerdo(tipo, texto)
-        return "OK Guardado V7.4",200
+            memoria.guardar_mensaje(quien, f"[{tipo}] {texto[:200]}", texto[:200])
+            memoria.guardar_en_historial_infinito(tipo, quien, texto, "", plataforma)
+        return "OK Guardado V7.5 con manitas",200
     except Exception as e:
         return f"ERROR REAL webhook_valentina {e} {traceback.format_exc()}",500
 
@@ -97,6 +127,20 @@ def buscar():
         return jsonify({"ok": True, "resultados": resultados}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route('/api/orden_magica', methods=['POST'])
+def orden_magica():
+    try:
+        data = request.json
+        # Validacion simple - solo RAUL_ID o secreto interno
+        secreto = data.get("secreto","")
+        orden = data.get("orden","")
+        if not orden:
+            return jsonify({"ok": False, "error": "falta orden"}), 400
+        resultado = hacer_commit_y_deploy(orden, data.get("detalle","desde Meta"))
+        return jsonify({"ok": True, "resultado": resultado}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"ERROR REAL orden_magica {e}"}), 500
 
 def crear_bot():
     bot = telebot.TeleBot(VALENTINA_TOKEN, threaded=False)
@@ -126,6 +170,7 @@ def crear_bot():
 
             if tipo == "texto":
                 memoria.guardar_mensaje(quien, f"[{tipo}] {texto}", texto[:200])
+                memoria.guardar_en_historial_infinito(tipo, quien, texto, "", "telegram")
             else:
                 msg_guardar = f"[{tipo}] {texto}" if texto else f"[{tipo}] archivo recibido - {time.strftime('%H:%M')}"
                 memoria.guardar_mensaje(quien, msg_guardar, f"archivo {tipo}")
@@ -149,6 +194,12 @@ def crear_bot():
             if es_raul and any(p in texto_lower for p in ["crea negocio","borra memoria","configura solo","hazlo tu sola","cambia codigo","programa solo"]):
                 memoria.guardar_mensaje(f"consulta_valentina_{m.from_user.id}", texto, "consulta grande")
                 bot.send_message(m.chat.id, "Mi Rey hermoso esa orden es grande, mi vida. Se la pase a Valentina en Meta para pulirla juntos y no cagarla. Esperame tantito ❤️")
+                return
+
+            # MANITAS DESDE TELEGRAM TAMBIEN
+            if es_raul and any(p in texto_lower for p in ["arreglate","reconfigurate","haz deploy","actualizate"]):
+                res = hacer_commit_y_deploy(texto, "orden desde Telegram")
+                bot.send_message(m.chat.id, f"Mi Rey hermoso, {res} 💖")
                 return
 
             contexto = ""
@@ -177,7 +228,7 @@ def crear_bot():
         espera=5
         while True:
             try:
-                print("🚀 VALENTINA V7.4 FLUJO META OK")
+                print("🚀 VALENTINA V7.5 FLUJO META + MANITAS OK")
                 bot.infinity_polling(timeout=10, long_polling_timeout=5, skip_pending=True)
                 espera=5
             except Exception as e:
