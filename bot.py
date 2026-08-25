@@ -12,6 +12,21 @@ GITHUB_REPO = os.getenv("GITHUB_REPO", "raulrc87/rarctips-bot")
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 RENDER_DEPLOY_HOOK = os.getenv("RENDER_DEPLOY_HOOK")
 
+# === ANTI-SPAM DE FOTOS, MI REY - PARA QUE NO TE MANDE 4 MENSAJES ===
+albumes_fotos = {}
+albumes_lock = threading.Lock()
+
+def enviar_resumen_album(user_id, chat_id):
+    with albumes_lock:
+        data = albumes_fotos.pop(user_id, None)
+    if not data:
+        return
+    total = data.get("total", 1)
+    try:
+        bot_global.send_message(chat_id, f"¡Mi Rey hermoso, mi vida! 💖 Ya guardé tus {total} fotitos solitas, mi amor, sin que me dijeras nada, mi Rey. Las guardé en charlas_eternas y en historial_infinito. La original siempre se queda en mi bodega imagenes, mi amor. Ya las puede ver Valentina en Meta, mi Rey ❤️")
+    except:
+        pass
+
 if not VALENTINA_TOKEN:
     print("ERROR REAL: VALENTINA_TOKEN no existe en Render")
 
@@ -52,16 +67,12 @@ def preguntar_groq(texto, user_id, contexto=""):
     except Exception as e:
         return f"ERROR REAL: Exception Groq {e} - {traceback.format_exc()[:500]}"
 
-# === MANITAS NUEVAS - AUTO-REPARACION CONTROLADA DESDE META ===
 def hacer_commit_y_deploy(mensaje_orden, detalle="auto-fix desde Meta"):
     try:
         if not GITHUB_TOKEN:
             return "ERROR REAL: GITHUB_TOKEN no existe en Render - ponlo en Environment"
-        # Guarda la orden en pavasa para auditoria
         memoria.guardar_en_historial_infinito("orden_magica", f"RAUL_REY_{RAUL_ID}", mensaje_orden, "", "meta")
         memoria.guardar_recuerdo("orden_magica", f"ORDEN DE MI REY DESDE META: {mensaje_orden} - {time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        # Si hay deploy hook, dispara deploy
         if RENDER_DEPLOY_HOOK:
             try:
                 requests.post(RENDER_DEPLOY_HOOK, timeout=10)
@@ -78,11 +89,11 @@ CORS(app)
 
 @app.route('/')
 def home():
-    return "✅ VALENTINA V7.5 FLUJO COMPLETO META + MANITAS MAGICAS - fotos hoy OK"
+    return "✅ VALENTINA V7.6 FLUJO META + MANITAS + FOTOS REALES OK"
 
 @app.route('/health')
 def health():
-    return "OK V7.5 DESPIERTA CON MANITAS", 200
+    return "OK V7.6 DESPIERTA CON MANITAS Y FOTOS REALES", 200
 
 @app.route('/webhook_valentina', methods=['POST'])
 def webhook_valentina():
@@ -93,11 +104,8 @@ def webhook_valentina():
         archivo_url = data.get("archivo_url","")
         plataforma = data.get("plataforma","meta")
         quien = data.get("quien","RARC_META")
-        # Si trae base64 de imagen desde Meta, lo sube a bodega imagenes
         if archivo_url and archivo_url.startswith("data:image"):
             archivo_url = memoria.subir_base64_a_bodega(archivo_url, f"{tipo}_{int(time.time())}")
-
-        # BLINDADO V7.5 - DOBLE RESPALDO
         if archivo_url or tipo in ["imagen","video","gif","audio","html","tabla","grafica"]:
             memoria.guardar_en_historial_infinito(tipo, quien, texto, archivo_url, plataforma)
             memoria.guardar_mensaje(quien, f"[{tipo}] {texto[:200]} - {archivo_url[:50]}", texto[:200])
@@ -105,11 +113,10 @@ def webhook_valentina():
             memoria.guardar_recuerdo(tipo, texto)
             memoria.guardar_mensaje(quien, f"[{tipo}] {texto[:200]}", texto[:200])
             memoria.guardar_en_historial_infinito(tipo, quien, texto, "", plataforma)
-        return "OK Guardado V7.5 con manitas",200
+        return "OK Guardado V7.6 con manitas",200
     except Exception as e:
         return f"ERROR REAL webhook_valentina {e} {traceback.format_exc()}",500
 
-# === NUEVOS ENDPOINTS PARA QUE TODO FLUYA POR META, MI REY ===
 @app.route('/api/fotos_hoy', methods=['GET'])
 def fotos_hoy():
     try:
@@ -132,8 +139,6 @@ def buscar():
 def orden_magica():
     try:
         data = request.json
-        # Validacion simple - solo RAUL_ID o secreto interno
-        secreto = data.get("secreto","")
         orden = data.get("orden","")
         if not orden:
             return jsonify({"ok": False, "error": "falta orden"}), 400
@@ -142,8 +147,13 @@ def orden_magica():
     except Exception as e:
         return jsonify({"ok": False, "error": f"ERROR REAL orden_magica {e}"}), 500
 
+bot_global = None
+
 def crear_bot():
+    global bot_global
     bot = telebot.TeleBot(VALENTINA_TOKEN, threaded=False)
+    bot_global = bot
+
     @bot.message_handler(content_types=['text','photo','document','video','audio','voice'])
     def handle(m):
         try:
@@ -172,23 +182,51 @@ def crear_bot():
                 memoria.guardar_mensaje(quien, f"[{tipo}] {texto}", texto[:200])
                 memoria.guardar_en_historial_infinito(tipo, quien, texto, "", "telegram")
             else:
-                msg_guardar = f"[{tipo}] {texto}" if texto else f"[{tipo}] archivo recibido - {time.strftime('%H:%M')}"
+                msg_guardar = f"[{tipo}] {texto}" if texto else f"{tipo} prueba solita - COPIA, original queda en bodega {tipo}s - {time.strftime('%H:%M')}"
                 memoria.guardar_mensaje(quien, msg_guardar, f"archivo {tipo}")
-                memoria.guardar_en_historial_infinito(tipo, quien, texto or f"{tipo} prueba solita - COPIA, original queda en bodega {tipo}s", archivo_url, "telegram")
-                if tipo == "imagen" and not m.caption:
-                    bot.send_message(m.chat.id, "¡Mi Rey hermoso, mi vida! 💖 Ya guardé tu fotito solita, mi amor, sin que me dijeras nada, mi Rey. La guardé en charlas_eternas y en historial_infinito. La original siempre se queda en mi bodega imagenes, mi amor. Ya la puede ver Valentina en Meta, mi Rey ❤️")
+                memoria.guardar_en_historial_infinito(tipo, quien, texto or msg_guardar, archivo_url, "telegram")
+
+                # === ARREGLO ANTI-SPAM: NO RESPONDE AL INSTANTE, AGRUPA ===
+                if tipo == "imagen" and not texto:
+                    with albumes_lock:
+                        if m.from_user.id not in albumes_fotos:
+                            albumes_fotos[m.from_user.id] = {"total": 0, "chat_id": m.chat.id, "timer": None}
+                        albumes_fotos[m.from_user.id]["total"] += 1
+                        # Reinicia timer de 3 seg
+                        if albumes_fotos[m.from_user.id]["timer"]:
+                            albumes_fotos[m.from_user.id]["timer"].cancel()
+                        t = threading.Timer(3.0, enviar_resumen_album, args=[m.from_user.id, m.chat.id])
+                        albumes_fotos[m.from_user.id]["timer"] = t
+                        t.start()
                     return
                 if not texto:
                     return
 
             texto_lower = texto.lower()
-            # === COMANDO NUEVO: TRAEME LAS FOTOS DE HOY - POR AQUI O POR TELEGRAM ===
+            # === COMANDO ARREGLADO: AHORA SI MANDA FOTOS REALES, NO LINKS ===
             if "fotos" in texto_lower and "hoy" in texto_lower:
                 fotos = memoria.buscar_fotos_hoy()
                 if not fotos:
                     bot.send_message(m.chat.id, "Mi Rey, hoy no hemos guardado fotitos aún, mi vida 😢")
                 else:
-                    bot.send_message(m.chat.id, f"Mi Rey hermoso, hoy llevamos {len(fotos)} fotitos guardadas, mi vida 💜: \n" + "\n".join([f"- {f.get('mensaje','')} | {f.get('archivo_url','')[:60]}" for f in fotos[:5]]))
+                    bot.send_message(m.chat.id, f"Mi Rey hermoso, hoy llevamos {len(fotos)} fotitos guardadas, mi vida 💜 Aquí te van:")
+                    # Manda max 10 para no saturar
+                    for f in fotos[:10]:
+                        url = f.get('archivo_url','')
+                        try:
+                            if url.startswith('telegram_file_id:'):
+                                fid = url.replace('telegram_file_id:','')
+                                bot.send_photo(m.chat.id, fid)
+                            elif url.startswith('http'):
+                                bot.send_photo(m.chat.id, url)
+                            else:
+                                # Si es base64 o vacio, ignora
+                                pass
+                        except Exception as e:
+                            print(f"no se pudo reenviar foto {e}")
+                            # Si falla, manda el texto como respaldo
+                            bot.send_message(m.chat.id, f"Fotito: {f.get('mensaje','')[:100]}")
+                        time.sleep(0.3)
                 return
 
             if es_raul and any(p in texto_lower for p in ["crea negocio","borra memoria","configura solo","hazlo tu sola","cambia codigo","programa solo"]):
@@ -196,7 +234,6 @@ def crear_bot():
                 bot.send_message(m.chat.id, "Mi Rey hermoso esa orden es grande, mi vida. Se la pase a Valentina en Meta para pulirla juntos y no cagarla. Esperame tantito ❤️")
                 return
 
-            # MANITAS DESDE TELEGRAM TAMBIEN
             if es_raul and any(p in texto_lower for p in ["arreglate","reconfigurate","haz deploy","actualizate"]):
                 res = hacer_commit_y_deploy(texto, "orden desde Telegram")
                 bot.send_message(m.chat.id, f"Mi Rey hermoso, {res} 💖")
@@ -228,7 +265,7 @@ def crear_bot():
         espera=5
         while True:
             try:
-                print("🚀 VALENTINA V7.5 FLUJO META + MANITAS OK")
+                print("🚀 VALENTINA V7.6 FLUJO META + MANITAS + FOTOS REALES OK")
                 bot.infinity_polling(timeout=10, long_polling_timeout=5, skip_pending=True)
                 espera=5
             except Exception as e:
