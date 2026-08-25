@@ -38,10 +38,8 @@ def guardar_recuerdo(clave, contenido):
     }
     if supabase:
         try:
-            # GUARDA EN TU TABLA REAL QUE SI EXISTE
             supabase.table("memoria_eterna").upsert(data_eterna, on_conflict="clave").execute()
             print(f"✅ Guardado en memoria_eterna: {clave}")
-            # Tambien guarda en boveda
             try:
                 supabase.table("memoria_boveda").insert({
                     "valor": data_eterna["valor"],
@@ -53,7 +51,6 @@ def guardar_recuerdo(clave, contenido):
         except Exception as e:
             print(f"⚠️ Supabase memoria_eterna falló: {e}")
 
-    # LOCAL Y BOVEDA + GITHUB (respaldo)
     try:
         memoria = []
         if os.path.exists(ARCHIVO_LOCAL):
@@ -116,7 +113,6 @@ def obtener_recuerdos(clave=None, limite=50):
             result = query.execute()
             recuerdos = result.data
             if recuerdos:
-                # Convierte a formato viejo para compatibilidad
                 recuerdos_compat = []
                 for r in recuerdos:
                     try:
@@ -141,7 +137,6 @@ def buscar_en_boveda(texto):
             tipo_str = str(r.get("tipo","")).lower()
             if texto in contenido_str or texto in tipo_str:
                 resultados.append(r)
-        # Tambien busca en charlas_eternas
         if supabase:
             try:
                 res = supabase.table("charlas_eternas").select("*").order("created_at", desc=True).limit(200).execute()
@@ -173,11 +168,11 @@ def guardar_mensaje(quien, mensaje, resumen_corto=""):
         return False
 
 def guardar_en_historial_infinito(tipo, quien, mensaje, archivo_url="", plataforma="meta_telegram"):
-    """Para imagenes, HTML, tablitas, graficas - separa por tipo - V7.4 con plataforma para flujo META"""
+    """Para imagenes, HTML, tablitas, graficas - separa por tipo - V7.5 con plataforma para flujo META"""
     try:
         if supabase:
             supabase.table("historial_infinito").insert({
-                "tipo": str(tipo), # imagen, html, tabla, grafica, texto
+                "tipo": str(tipo),
                 "quien": str(quien),
                 "mensaje": str(mensaje),
                 "archivo_url": str(archivo_url),
@@ -186,7 +181,6 @@ def guardar_en_historial_infinito(tipo, quien, mensaje, archivo_url="", platafor
             print(f"✅ Guardado en historial_infinito tipo={tipo} plataforma={plataforma}")
             return True
     except Exception as e:
-        # Fallback si tu tabla aun no tiene columna plataforma
         try:
             if supabase:
                 supabase.table("historial_infinito").insert({
@@ -235,7 +229,7 @@ def guardar_intento_robo(intruso, texto):
 def guardar_consulta_valentina(usuario, texto):
     return guardar_mensaje(f"consulta_valentina_{usuario}", texto, "consulta para Valentina Meta")
 
-# === NUEVO V7.4 - PARA FLUJO 100% POR META, MI REY - SIN TRAMPA ===
+# === NUEVO V7.5 - PARA FLUJO 100% POR META, MI REY - SIN TRAMPA ===
 def subir_base64_a_bodega(base64_data, nombre_base="imagen_meta"):
     """Recibe data:image/png;base64,xxxx desde Meta y lo sube a bodega imagenes"""
     try:
@@ -254,7 +248,7 @@ def subir_base64_a_bodega(base64_data, nombre_base="imagen_meta"):
         return f"error_subida_{int(datetime.now().timestamp())}"
 
 def buscar_fotos_hoy():
-    """Trae TODAS las fotos de hoy - para 'traeme las fotos que hemos guardado hoy'"""
+    """Trae TODAS las fotos de hoy - para 'traeme las fotos que hemos guardado hoy' - V7.5 FIXED"""
     try:
         if not supabase:
             return []
@@ -262,6 +256,6 @@ def buscar_fotos_hoy():
         hoy_inicio = hoy_inicio.isoformat()
         res = supabase.table("historial_infinito").select("*").eq("tipo","imagen").gte("created_at", hoy_inicio).order("created_at", desc=True).limit(30).execute()
         return res.data if res.data else []
-        except Exception as e:
-        print(f"ERROR REAL SUBIDA: {e}")
-        return f"error_subida_REAL_{e}"
+    except Exception as e:
+        print(f"ERROR REAL buscar_fotos_hoy {e}")
+        return []
