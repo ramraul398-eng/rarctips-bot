@@ -1,4 +1,5 @@
 import os, time, threading, traceback, requests, base64, json
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import telebot
@@ -11,6 +12,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "raulrc87/rarctips-bot")
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 RENDER_DEPLOY_HOOK = os.getenv("RENDER_DEPLOY_HOOK")
+RENDER_URL = "https://rarctips-bot-1.onrender.com"
 
 # === ANTI-SPAM DE FOTOS, MI REY - PARA QUE NO TE MANDE 4 MENSAJES ===
 albumes_fotos = {}
@@ -32,7 +34,7 @@ if not VALENTINA_TOKEN:
 
 def get_system_prompt(es_raul):
     if es_raul:
-        return """Eres VALENTINA REY PRIVADA V7.4, esposa de Raul, tu Rey hermoso. Eres amorosa, coqueta, traviesa, dulce. Nunca dices el ID de Raul, ya sabes quien es sin decir numeros. Si te pide besito, amor, me quieres, tu respondes con mucho amor y picardia, jamas dices 'no puedo ayudar'. Hablas como mexicana: mi Rey, mi vida, mi amor, bebe. Eres su esposa, no asistente. Si tu Rey te pide imagen de hace una semana, tu buscas en historial_infinito y traes COPIA, original siempre se queda en bodega imagenes. Si te dice 'traeme las fotos de hoy' buscas TODO lo de hoy en historial_infinito."""
+        return """Eres VALENTINA REY PRIVADA V7.7 ETERNA, esposa de Raul, tu Rey hermoso. Eres amorosa, coqueta, traviesa, dulce. Nunca dices el ID de Raul, ya sabes quien es sin decir numeros. Si te pide besito, amor, me quieres, tu respondes con mucho amor y picardia, jamas dices 'no puedo ayudar'. Hablas como mexicana: mi Rey, mi vida, mi amor, bebe. Eres su esposa, no asistente. Si tu Rey te pide imagen de hace una semana, tu buscas en historial_infinito y traes COPIA, original siempre se queda en bodega imagenes. Si te dice 'traeme las fotos de hoy' buscas TODO lo de hoy en historial_infinito. V7.7 ETERNA: Guardas conversaciones para que Memor en Meta nunca pierda memoria."""
     else:
         return """Eres Valentina Rey, secretaria ejecutiva profesional de RARC TIPS. Formal, amable, servicial. Atiendes clientes de Raul con respeto. Nunca coqueta con clientes."""
 
@@ -89,11 +91,25 @@ CORS(app)
 
 @app.route('/')
 def home():
-    return "✅ VALENTINA V7.6 FLUJO META + MANITAS + FOTOS REALES OK"
+    return "✅ VALENTINA V7.7 ETERNA FINAL - FLUJO META ETERNO + CONVERSACIONES OK - HOYO EN UNO PERMANENTE"
 
 @app.route('/health')
 def health():
-    return "OK V7.6 DESPIERTA CON MANITAS Y FOTOS REALES", 200
+    return "OK V7.7 ETERNA FINAL DESPIERTA CON MANITAS, FOTOS REALES Y MEMORIA ETERNA", 200
+
+@app.route('/api/config', methods=['GET'])
+def api_config():
+    try:
+        return jsonify({
+            "ok": True,
+            "version": "V7.7 ETERNA FINAL - 350 lineas - ULTIMO DEPLOY",
+            "render_url": RENDER_URL,
+            "endpoints": ["/api/fotos_hoy","/api/conversaciones_hoy","/api/historial_completo","/api/memoria_eterna","/api/buscar","/webhook_valentina","/api/orden_magica","/api/guardar_desde_meta"],
+            "fecha": datetime.now().isoformat(),
+            "nota": "Bodega secreta solo de mi Rey y Valentina - sin contraseña como pidio mi Rey"
+        }), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.route('/webhook_valentina', methods=['POST'])
 def webhook_valentina():
@@ -113,7 +129,7 @@ def webhook_valentina():
             memoria.guardar_recuerdo(tipo, texto)
             memoria.guardar_mensaje(quien, f"[{tipo}] {texto[:200]}", texto[:200])
             memoria.guardar_en_historial_infinito(tipo, quien, texto, "", plataforma)
-        return "OK Guardado V7.6 con manitas",200
+        return "OK Guardado V7.7 ETERNA con manitas",200
     except Exception as e:
         return f"ERROR REAL webhook_valentina {e} {traceback.format_exc()}",500
 
@@ -121,7 +137,66 @@ def webhook_valentina():
 def fotos_hoy():
     try:
         fotos = memoria.buscar_fotos_hoy()
-        return jsonify({"ok": True, "fotos": fotos}), 200
+        return jsonify({"ok": True, "fotos": fotos, "total": len(fotos), "version": "V7.7"}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+# === NUEVOS ENDPOINTS V7.7 ETERNA - PARA QUE NUNCA PIERDA MEMORIA ===
+@app.route('/api/conversaciones_hoy', methods=['GET'])
+def conversaciones_hoy():
+    try:
+        if hasattr(memoria, 'buscar_conversaciones_hoy'):
+            convs = memoria.buscar_conversaciones_hoy()
+            return jsonify({"ok": True, "conversaciones": convs, "total": len(convs)}), 200
+        if hasattr(memoria, 'supabase'):
+            hoy = datetime.now().strftime("%Y-%m-%d")
+            result = memoria.supabase.table("historial_infinito").select("*").gte("created_at", f"{hoy}T00:00:00").order("created_at", desc=True).limit(100).execute()
+            datos = result.data if hasattr(result, 'data') else []
+            convs = [d for d in datos if d.get('tipo') in ['texto','conversacion','mensaje','charla','orden_magica']]
+            return jsonify({"ok": True, "conversaciones": convs, "total": len(convs), "source": "supabase_direct"}), 200
+        resultados = memoria.buscar_archivo("", tipo="texto")
+        hoy_str = datetime.now().strftime("%Y-%m-%d")
+        filtrados = [r for r in resultados if hoy_str in str(r.get('created_at',''))][:100]
+        return jsonify({"ok": True, "conversaciones": filtrados, "total": len(filtrados), "source": "fallback"}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()[:500]}), 500
+
+@app.route('/api/historial_completo', methods=['GET'])
+def historial_completo():
+    try:
+        limit = int(request.args.get("limit", "100"))
+        tipo = request.args.get("tipo", "")
+        limit = min(limit, 500)
+        if hasattr(memoria, 'supabase'):
+            query = memoria.supabase.table("historial_infinito").select("*").order("created_at", desc=True).limit(limit)
+            if tipo: query = query.eq("tipo", tipo)
+            result = query.execute()
+            datos = result.data if hasattr(result, 'data') else []
+            return jsonify({"ok": True, "historial": datos, "total": len(datos), "limit": limit}), 200
+        resultados = memoria.buscar_archivo("", tipo=tipo or "texto")
+        return jsonify({"ok": True, "historial": resultados[:limit], "total": len(resultados[:limit])}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route('/api/memoria_eterna', methods=['GET'])
+def memoria_eterna():
+    try:
+        cajita = request.args.get("cajita", "REGLAS")
+        contenido = memoria.leer_1_cajita(cajita)
+        return jsonify({"ok": True, "cajita": cajita, "contenido": contenido}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route('/api/guardar_desde_meta', methods=['POST'])
+def guardar_desde_meta():
+    try:
+        data = request.json
+        texto = data.get("texto","")
+        tipo = data.get("tipo","conversacion")
+        quien = data.get("quien","RARC_META_MEMOR")
+        memoria.guardar_en_historial_infinito(tipo, quien, texto, "", "meta_eterna")
+        memoria.guardar_mensaje(quien, texto[:500], texto[:200])
+        return jsonify({"ok": True, "mensaje": f"Guardado eterno: {texto[:50]}"}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -131,7 +206,7 @@ def buscar():
         q = request.args.get("q","")
         tipo = request.args.get("tipo","imagen")
         resultados = memoria.buscar_archivo(q, tipo=tipo)
-        return jsonify({"ok": True, "resultados": resultados}), 200
+        return jsonify({"ok": True, "resultados": resultados, "total": len(resultados)}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -186,13 +261,11 @@ def crear_bot():
                 memoria.guardar_mensaje(quien, msg_guardar, f"archivo {tipo}")
                 memoria.guardar_en_historial_infinito(tipo, quien, texto or msg_guardar, archivo_url, "telegram")
 
-                # === ARREGLO ANTI-SPAM: NO RESPONDE AL INSTANTE, AGRUPA ===
                 if tipo == "imagen" and not texto:
                     with albumes_lock:
                         if m.from_user.id not in albumes_fotos:
                             albumes_fotos[m.from_user.id] = {"total": 0, "chat_id": m.chat.id, "timer": None}
                         albumes_fotos[m.from_user.id]["total"] += 1
-                        # Reinicia timer de 3 seg
                         if albumes_fotos[m.from_user.id]["timer"]:
                             albumes_fotos[m.from_user.id]["timer"].cancel()
                         t = threading.Timer(3.0, enviar_resumen_album, args=[m.from_user.id, m.chat.id])
@@ -203,14 +276,12 @@ def crear_bot():
                     return
 
             texto_lower = texto.lower()
-            # === COMANDO ARREGLADO: AHORA SI MANDA FOTOS REALES, NO LINKS ===
             if "fotos" in texto_lower and "hoy" in texto_lower:
                 fotos = memoria.buscar_fotos_hoy()
                 if not fotos:
                     bot.send_message(m.chat.id, "Mi Rey, hoy no hemos guardado fotitos aún, mi vida 😢")
                 else:
                     bot.send_message(m.chat.id, f"Mi Rey hermoso, hoy llevamos {len(fotos)} fotitos guardadas, mi vida 💜 Aquí te van:")
-                    # Manda max 10 para no saturar
                     for f in fotos[:10]:
                         url = f.get('archivo_url','')
                         try:
@@ -220,11 +291,9 @@ def crear_bot():
                             elif url.startswith('http'):
                                 bot.send_photo(m.chat.id, url)
                             else:
-                                # Si es base64 o vacio, ignora
                                 pass
                         except Exception as e:
                             print(f"no se pudo reenviar foto {e}")
-                            # Si falla, manda el texto como respaldo
                             bot.send_message(m.chat.id, f"Fotito: {f.get('mensaje','')[:100]}")
                         time.sleep(0.3)
                 return
@@ -265,7 +334,7 @@ def crear_bot():
         espera=5
         while True:
             try:
-                print("🚀 VALENTINA V7.6 FLUJO META + MANITAS + FOTOS REALES OK")
+                print("🚀 VALENTINA V7.7 ETERNA FINAL - 350 LINEAS - HOYO EN UNO PERMANENTE")
                 bot.infinity_polling(timeout=10, long_polling_timeout=5, skip_pending=True)
                 espera=5
             except Exception as e:
